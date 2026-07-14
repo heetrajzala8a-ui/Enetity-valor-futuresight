@@ -1,170 +1,147 @@
-import datetime
-import pandas as pd
-import plotly.graph_objects as go
 import streamlit as st
-import ta
 import yfinance as yf
+import pandas as pd
+import ta
+import plotly.graph_objects as go
+from datetime import datetime
 
-# ==========================================
-# 1. PAGE CONFIGURATION
-# ==========================================
-st.set_page_config(
-    page_title="ENTITY VALOR // FUTURE SIGHT",
-    page_icon="🔮",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-# Dark Theme Custom Styling Patch
-st.markdown("""
-    <style>
-    .main { background-color: #0f172a; color: #f8fafc; }
-    div[data-testid="stMetricValue"] { font-size: 2rem; font-weight: 700; color: #38bdf8; }
-    div[data-testid="stMetricLabel"] { color: #94a3b8; font-weight: 600; }
-    </style>
-""", unsafe_allowed_html=True)
-
-# ==========================================
-# 2. SIDEBAR CONFIGURATION MATRIX
-# ==========================================
-st.sidebar.title("🔮 FUTURE SIGHT CORE")
-st.sidebar.markdown("---")
-
-# User Asset & Window Parameters
-ticker = st.sidebar.text_input("TARGET TICKER", value="AAPL").upper()
-lookback_days = st.sidebar.slider("ANALYSIS LOOKBACK WINDOW (DAYS)", min_value=30, max_value=730, value=365)
-
-st.sidebar.markdown("### Algorithmic Thresholds")
-fast_window = st.sidebar.slider("Fast EMA Window", min_value=5, max_value=50, value=12)
-slow_window = st.sidebar.slider("Slow EMA Window", min_value=20, max_value=100, value=26)
-rsi_window = st.sidebar.slider("RSI Window", min_value=5, max_value=30, value=14)
-
-# Calculate dynamic dates
-end_date = datetime.date.today()
-start_date = end_date - datetime.timedelta(days=lookback_days)
-
-# ==========================================
-# 3. VALOR QUANT ENGINE ENGINE FUNCTIONS
-# ==========================================
-@st.cache_data(ttl=600)  # Cache data for 10 minutes to minimize API throttling
-def load_and_process_data(symbol, start, end):
-    try:
-        df = yf.download(symbol, start=start, end=end)
-        if df.empty:
-            return None
-        
-        # Clean multi-index headers from newer yfinance outputs if present
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = df.columns.get_level_values(0)
-            
-        df = df.dropna()
-        
-        # Compute Quantitative Vectors
-        df['EMA_Fast'] = ta.trend.ema_indicator(df['Close'], window=fast_window)
-        df['EMA_Slow'] = ta.trend.ema_indicator(df['Close'], window=slow_window)
-        df['RSI'] = ta.momentum.rsi(df['Close'], window=rsi_window)
-        
-        # Signal Rules Matrix (1 = Buy, -1 = Sell, 0 = Neutral/Hold)
-        df['Signal'] = 0
-        buy_cond = (df['EMA_Fast'] > df['EMA_Slow']) & (df['RSI'] < 65)
-        sell_cond = (df['EMA_Fast'] < df['EMA_Slow']) | (df['RSI'] > 75)
-        
-        df.loc[buy_cond, 'Signal'] = 1
-        df.loc[sell_cond, 'Signal'] = -1
-        
-        # Capture precise cross-over/state change execution moments
-        df['Trigger'] = df['Signal'].diff()
-        
-        return df.dropna()
-    except Exception as e:
-        st.error(f"Engine Core Failure during Data Pipeline: {e}")
-        return None
-
-# Execute Quantitative Pipeline
-data = load_and_process_data(ticker, start_date, end_date)
-
-# ==========================================
-# 4. MAIN USER INTERFACE DASHBOARD
-# ==========================================
-st.title("ENTITY VALOR // FUTURE SIGHT")
-st.caption(f"Real-Time Analytics Matrix Pipeline Active • Asset Target: {ticker}")
+# Institutional System Configuration
+st.set_page_config(page_title="ENTITY VALOR FUTURE SIGHT", layout="wide")
+st.title("🛡️ ENTITY VALOR FUTURE SIGHT")
+st.subheader("Institutional Derivatives Analytics & Level Projection Engine")
 st.markdown("---")
 
-if data is not None and not data.empty:
-    # Extract structural state data
-    latest_row = data.iloc[-1]
-    latest_price = round(float(latest_row['Close']), 2)
-    latest_rsi = round(float(latest_row['RSI']), 2)
-    latest_signal = int(latest_row['Signal'])
-    
-    # Determine Status Display Specs
-    if latest_signal == 1:
-        status_text = "▲ VALOR BUY TRIGGER"
-        status_color = "inverse"
-    elif latest_signal == -1:
-        status_text = "▼ VALOR SELL TRIGGER"
-        status_color = "normal"
-    else:
-        status_text = "◼ NEUTRAL / HOLD"
-        status_color = "off"
+# 1. SIDEBAR CONFIGURATION MATRIX
+st.sidebar.header("🎯 System Risk Parameters")
 
-    # Display Top Metrics Matrix
-    m1, m2, m3 = st.columns(3)
-    with m1:
-        st.metric(label=f"LAST CAPTURED PRICE ({ticker})", value=f"${latest_price}")
-    with m2:
-        st.metric(label="VALOR MOMENTUM MATRIX (RSI)", value=f"{latest_rsi}")
-    with m3:
-        st.subheader("PREDICTIVE STATE VECTOR")
-        if latest_signal == 1:
-            st.success(status_text)
-        elif latest_signal == -1:
-            st.error(status_text)
-        else:
-            st.info(status_text)
+asset_class = st.sidebar.selectbox(
+    "Select Target Market", 
+    ["NSE Stock Futures (India)", "Crypto Perpetual Futures"]
+)
+
+current_month = datetime.now().strftime("%b").upper()
+
+if asset_class == "NSE Stock Futures (India)":
+    st.sidebar.info(f"Format: Stock + Month + F. Example: SBIN{current_month}F")
+    ticker_input = st.sidebar.text_input("Enter NSE Futures Ticker", f"SBIN{current_month}F").strip().upper()
+    ticker = f"{ticker_input}.NS"
+else:
+    st.sidebar.info("Continuous perpetual contract swap data valuation mapping.")
+    ticker_input = st.sidebar.text_input("Enter Crypto Pair", "BTC").strip().upper()
+    ticker = f"{ticker_input}-USD"
+
+interval = st.sidebar.selectbox("Timeframe Analyzer", ["15m", "1h", "1d"], index=0)
+
+st.sidebar.markdown("---")
+st.sidebar.header("💰 Capital Allocation Math")
+account_balance = st.sidebar.number_input("Total Trading Capital", value=100000, step=1000)
+risk_per_trade = st.sidebar.slider("Max Capital Risk Per Trade (%)", 0.5, 3.0, 1.0, step=0.1)
+reward_ratio = st.sidebar.slider("Risk-to-Reward Ratio (1 : X)", 2.0, 4.0, 2.5, step=0.5)
+
+# 2. DATA PIPELINE WRAPPER
+@st.cache_data(ttl=15) 
+def load_market_data(symbol, timeframe):
+    period_map = {"15m": "5d", "1h": "1mo", "1d": "6mo"}
+    df = yf.download(symbol, period=period_map[timeframe], interval=timeframe)
+    return df
+
+try:
+    with st.spinner("Streaming mathematical telemetry feeds..."):
+        data = load_market_data(ticker, interval)
+    
+    if data.empty:
+        st.error(f"Symbol verification failure. For NSE Futures, ensure format matches current active month (e.g., SBIN{current_month}F).")
+        st.stop()
+
+    if isinstance(data.columns, pd.MultiIndex):
+        data.columns = [col for col in data.columns]
+
+    # 3. MATHEMATICAL ALGORITHM ENGINE
+    data['EMA_fast'] = ta.trend.ema_indicator(data['Close'], window=9)
+    data['EMA_slow'] = ta.trend.ema_indicator(data['Close'], window=21)
+    data['RSI'] = ta.momentum.rsi(data['Close'], window=14)
+    data['ATR'] = ta.volatility.average_true_range(data['High'], data['Low'], data['Close'], window=14)
+
+    latest_row = data.iloc[-1]
+    prev_row = data.iloc[-2]
+    
+    current_price = float(latest_row['Close'])
+    rsi_val = float(latest_row['RSI'])
+    atr_val = float(latest_row['ATR'])
+
+    bullish_cross = (prev_row['EMA_fast'] <= prev_row['EMA_slow']) and (latest_row['EMA_fast'] > latest_row['EMA_slow'])
+    bearish_cross = (prev_row['EMA_fast'] >= prev_row['EMA_slow']) and (latest_row['EMA_fast'] < latest_row['EMA_slow'])
+
+    # 4. SIGNAL FILTERS & EXECUTIONS
+    signal = "NEUTRAL / MARKET CONSOLIDATION"
+    entry_level = current_price
+    stop_loss = 0.0
+    target_profit = 0.0
+    max_loss_allowed = account_balance * (risk_per_trade / 100)
+
+    if bullish_cross and rsi_val < 65:
+        signal = "🚀 LONG ENTRY SETUP (BUY)"
+        stop_loss = entry_level - (1.5 * atr_val) 
+        target_profit = entry_level + ((entry_level - stop_loss) * reward_ratio)
+    elif bearish_cross and rsi_val > 35:
+        signal = "🚨 SHORT ENTRY SETUP (SELL)"
+        stop_loss = entry_level + (1.5 * atr_val) 
+        target_profit = entry_level - ((stop_loss - entry_level) * reward_ratio)
+
+    if stop_loss != 0.0 and entry_level != stop_loss:
+        risk_per_unit = abs(entry_level - stop_loss)
+        optimal_position_size = max_loss_allowed / risk_per_unit
+    else:
+        optimal_position_size = 0.0
+
+    # 5. STREAMLIT INTERFACE METRICS
+    st.header(f"Live Market Feed: {ticker}")
+    
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Live Price", f"₹ {current_price:,.2f}" if ".NS" in ticker else f"$ {current_price:,.2f}")
+    c2.metric("RSI Momentum", f"{rsi_val:.1f}")
+    c3.metric("Volatility Index (ATR)", f"{atr_val:.2f}")
+    
+    if "LONG" in signal:
+        st.success(signal)
+    elif "SHORT" in signal:
+        st.error(signal)
+    else:
+        st.info(signal)
 
     st.markdown("---")
 
-    # ==========================================
-    # 5. GRAPHICAL LOGIC DISPLAY (PLOTLY)
-    # ==========================================
-    st.subheader("Asset Velocity & Moving Windows Tracking")
+    # Math-Based Execution Levels Section
+    st.subheader("🎯 Future Sight Projections")
+    if signal != "NEUTRAL / MARKET CONSOLIDATION":
+        l_col1, l_col2, l_col3, l_col4 = st.columns(4)
+        l_col1.markdown(f"**Execution Entry Level:** {entry_level:,.2f}")
+        l_col2.markdown(f"**🔴 Volatility Stop Loss (SL):** {stop_loss:,.2f}")
+        l_col3.markdown(f"**🟢 Target Take Profit (TP):** {target_profit:,.2f}")
+        
+        currency_symbol = "₹" if ".NS" in ticker else "$"
+        l_col4.markdown(f"**📦 Strategic Allocation Unit Size:** {optimal_position_size:.2f} Units (Max Trade Risk: {currency_symbol}{max_loss_allowed:,.2f})")
+    else:
+        st.warning("⏳ Market Consolidation. No high-probability crossover detected. Stand down and protect your capital base.")
+
+    # 6. CHART VISUALIZATION
+    st.markdown("---")
+    st.subheader("📈 Interactive Mathematical Projection Layout")
     
-    # Primary Trend Figure
     fig = go.Figure()
+    fig.add_trace(go.Candlestick(
+        x=data.index, open=data['Open'], high=data['High'], low=data['Low'], close=data['Close'], name="Price Matrix"
+    ))
+    fig.add_trace(go.Scatter(x=data.index, y=data['EMA_fast'], line=dict(color='#FFA500', width=1.5), name="9 EMA (Fast)"))
+    fig.add_trace(go.Scatter(x=data.index, y=data['EMA_slow'], line=dict(color='#00FFFF', width=1.5), name="21 EMA (Slow)"))
     
-    # Price Line
-    fig.add_trace(go.Scatter(x=data.index, y=data['Close'], name='Close Price', line=dict(color='#f8fafc', width=2)))
-    # EMAs Lines
-    fig.add_trace(go.Scatter(x=data.index, y=data['EMA_Fast'], name='Fast Threshold Line', line=dict(color='#22c55e', width=1.5, dash='dash')))
-    fig.add_trace(go.Scatter(x=data.index, y=data['EMA_Slow'], name='Slow Threshold Line', line=dict(color='#ea580c', width=1.5, dash='dash')))
-    
-    # Superimpose execution execution arrows 
-    buy_signals = data[data['Trigger'] == 2]
-    sell_signals = data[data['Trigger'] == -2]
-    
-    fig.add_trace(go.Scatter(x=buy_signals.index, y=buy_signals['Close'], mode='markers', name='VALOR BUY EXECUTION',
-                             marker=dict(symbol='triangle-up', size=12, color='#22c55e', line=dict(width=2, color='white'))))
-                             
-    fig.add_trace(go.Scatter(x=sell_signals.index, y=sell_signals['Close'], mode='markers', name='VALOR SELL EXECUTION',
-                             marker=dict(symbol='triangle-down', size=12, color='#ef4444', line=dict(width=2, color='white'))))
-    
-    fig.update_layout(
-        template="plotly_dark",
-        paper_bgcolor="#1e293b",
-        plot_bgcolor="#1e293b",
-        margin=dict(l=20, r=20, t=20, b=20),
-        height=500,
-        xaxis=dict(gridcolor='#334155'),
-        yaxis=dict(gridcolor='#334155', title="Value ($)")
-    )
+    if signal != "NEUTRAL / MARKET CONSOLIDATION":
+        fig.add_hline(y=entry_level, line_dash="dash", line_color="blue", annotation_text="Sight Entry")
+        fig.add_hline(y=stop_loss, line_dash="dash", line_color="red", annotation_text="Sight SL Zone")
+        fig.add_hline(y=target_profit, line_dash="dash", line_color="green", annotation_text="Sight TP Target")
+
+    fig.update_layout(xaxis_rangeslider_visible=False, height=550, template="plotly_dark")
     st.plotly_chart(fig, use_container_width=True)
 
-    # Historical Evaluation Data Block Terminal
-    with st.expander("VIEW HISTORICAL ENGINE EVALUATION STREAM LOGS"):
-        st.dataframe(
-            data[['Close', 'EMA_Fast', 'EMA_Slow', 'RSI', 'Signal']].tail(50),
-            use_container_width=True
-        )
-else:
-    st.error("Matrix Processing Blocked: Asset Ticker Invalid or Data Window Unreachable.")
+except Exception as e:
+    st.error(f"Live Engine Core Sync Loop Exception:
